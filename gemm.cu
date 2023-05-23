@@ -81,11 +81,15 @@ __global__ static void matmultCUDA(const float *a, size_t lda, const float *b, s
 	const int row = idx / n;
 	const int col = idx % n;
 	if (row < n && col < n) {
-		float t = 0;
+		float s = 0;
+        float cc = 0;
 		for (int i = 0; i < n; i++) {
-			t += a[row*lda + i]*b[i*ldb + col];
+            float y = a[row*lda + i]*b[i*ldb + col] - cc;
+			float t = s + y;
+            cc = (t - s) - y;
+            s = t;
 		}
-		c[row*ldc + col] = t;
+		c[row*ldc + col] = s;
 	}
 }
 

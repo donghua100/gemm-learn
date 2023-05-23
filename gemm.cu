@@ -39,17 +39,20 @@ void matgen(float *a, int lda, int n) {
 }
 
 
-void matmult(const float *a, int lda, const float *b, int ldb, 
+clock_t matmult(const float *a, int lda, const float *b, int ldb, 
 		float *c, int ldc, int n) {
+    clock_t start = clock();
 	for (int i = 0; i < n; i++) {
 		for (int j = 0; j < n; j++) {
 			double t = 0;
-			for (int k = 0; k < n; i++) {
+			for (int k = 0; k < n; k++) {
 				t += a[i*lda + k]*b[k*ldb + j];
 			}
 			c[i*ldc + j] = t;
 		}
 	}
+    clock_t end = clock();
+    return end - start;
 }
 
 void compare_mat(const float *a, int lda, const float *b, int ldb, int n) {
@@ -98,7 +101,7 @@ clock_t matMultCUDA(const float *a, int lda,
 	cudaMemcpy2D(ac, sizeof(float)*n, a, sizeof(float)*lda,
 			sizeof(float)*n, n, cudaMemcpyHostToDevice);
 
-	cudaMemcpy2D(bc, sizeof(float)*n, b, sizeof(float)*lda,
+	cudaMemcpy2D(bc, sizeof(float)*n, b, sizeof(float)*ldb,
 			sizeof(float)*n, n, cudaMemcpyHostToDevice);
 
 	int blocks = (n + NUM_THREADS - 1)/NUM_THREADS;
@@ -133,15 +136,18 @@ int main() {
 	d = (float *)malloc(sizeof(float)*n*n);
 
 	matgen(a, n, n);
-	matgen(a, n, n);
+	matgen(b, n, n);
 
-	clock_t time = matMultCUDA(a, n, b, n, c, n, n);
+	clock_t gpu_time = matMultCUDA(a, n, b, n, c, n, n);
 
-	matmult(a,n,b,n,d,n,n);
-
-	compare_mat(c, n, d, n, n);
-	double sec = (double)time/CLOCKS_PER_SEC;
-	printf("Time used: %.2f(%.2lf GFLOPS)\n", sec,
+	double sec = (double)gpu_time/CLOCKS_PER_SEC;
+	printf("(GPU)Time used: %.2f sec(%.2lf GFLOPS)\n", sec,
 			2.0*n*n*n/(sec*1E9));
+
+	clock_t cpu_time = matmult(a,n,b,n,d,n,n);
+    sec = (double)cpu_time/CLOCKS_PER_SEC;
+	printf("(CPU)Time used: %.2f sec(%.2lf GFLOPS)\n", sec,
+			2.0*n*n*n/(sec*1E9));
+	compare_mat(c, n, d, n, n);
 	return 0;
 }

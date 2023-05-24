@@ -102,7 +102,7 @@ __global__ static void matmultCUDA(const float *a, size_t lda, const float *b, s
 clock_t matMultCUDA(const float *a, int lda,
 		const float *b, int ldb, float *c, int ldc, int n) {
 	float *ac, *bc, *cc;
-	clock_t start = clock();
+	// clock_t start = clock();
 	cudaMalloc((void **)&ac, sizeof(float)*n*n);
 	cudaMalloc((void **)&bc, sizeof(float)*n*n);
 	cudaMalloc((void **)&cc, sizeof(float)*n*n);
@@ -114,7 +114,10 @@ clock_t matMultCUDA(const float *a, int lda,
 			sizeof(float)*n, n, cudaMemcpyHostToDevice);
 
 	int blocks = n;
+	clock_t start = clock();
 	matmultCUDA<<<blocks, NUM_THREADS, sizeof(float)*n>>>(ac, n, bc, n, cc, n, n);
+    cudaDeviceSynchronize();
+	clock_t end = clock();
 
 	cudaMemcpy2D(c, sizeof(float)*ldc, cc, sizeof(float)*n,
 			sizeof(float)*n,n,cudaMemcpyDeviceToHost);
@@ -123,7 +126,7 @@ clock_t matMultCUDA(const float *a, int lda,
 	cudaFree(bc);
 	cudaFree(cc);
 
-	clock_t end = clock();
+	// clock_t end = clock();
 	return end - start;
 
 }
@@ -150,12 +153,12 @@ int main() {
 	clock_t gpu_time = matMultCUDA(a, n, b, n, c, n, n);
 
 	double sec = (double)gpu_time/CLOCKS_PER_SEC;
-	printf("(GPU)Time used: %.2f sec(%.2lf GFLOPS)\n", sec,
+	printf("(GPU)Time used: %.4f sec(%.2lf GFLOPS)\n", sec,
 			2.0*n*n*n/(sec*1E9));
 
 	clock_t cpu_time = matmult(a,n,b,n,d,n,n);
     sec = (double)cpu_time/CLOCKS_PER_SEC;
-	printf("(CPU)Time used: %.2f sec(%.2lf GFLOPS)\n", sec,
+	printf("(CPU)Time used: %.4f sec(%.2lf GFLOPS)\n", sec,
 			2.0*n*n*n/(sec*1E9));
 	compare_mat(c, n, d, n, n);
 	return 0;

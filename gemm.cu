@@ -120,15 +120,19 @@ clock_t matMultCUDA(const float *a, int lda,
 	float *ac, *bc, *cc;
 	size_t pitch_a, pitch_b, pitch_c;
 	// clock_t start = clock();
-	cudaMallocPitch((void **)&ac, &pitch_a, sizeof(float)*n, n);
-	cudaMallocPitch((void **)&bc, &pitch_b, sizeof(float)*n, n);
-	cudaMallocPitch((void **)&cc, &pitch_c, sizeof(float)*n, n);
+	int newn = (n + BLOCK_SIZE - 1)/BLOCK_SIZE * BLOCK_SIZE;
+	cudaMallocPitch((void **)&ac, &pitch_a, sizeof(float)*newn, newn);
+	cudaMallocPitch((void **)&bc, &pitch_b, sizeof(float)*newn, newn);
+	cudaMallocPitch((void **)&cc, &pitch_c, sizeof(float)*newn, newn);
 
 	cudaMemcpy2D(ac, pitch_a, a, sizeof(float)*lda,
-			sizeof(float)*n, n, cudaMemcpyHostToDevice);
+			sizeof(float)*newn, newn, cudaMemcpyHostToDevice);
 
 	cudaMemcpy2D(bc, pitch_b, b, sizeof(float)*ldb,
-			sizeof(float)*n, n, cudaMemcpyHostToDevice);
+			sizeof(float)*newn, newn, cudaMemcpyHostToDevice);
+
+	cudaMemset(ac, 0, pitch_a * newn);
+	cudaMemset(bc, 0, pitch_b * newn);
 
 	int bx = (n + BLOCK_SIZE - 1)/BLOCK_SIZE;
 	dim3 blocks(bx, bx);

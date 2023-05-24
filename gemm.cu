@@ -1,10 +1,10 @@
-#include <ctime>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 #include <cuda_runtime.h>
 
 #define NUM_THREADS 256
+#define BLOCK_SIZE 16
 
 int init_cuda() {
 	int count;
@@ -75,27 +75,43 @@ void compare_mat(const float *a, int lda, const float *b, int ldb, int n) {
 
 __global__ static void matmultCUDA(const float *a, size_t lda, const float *b, size_t ldb,
 		float *c, size_t ldc, int n) {
-	extern __shared__ float data[];
-	const int tid = threadIdx.x;
-	const int row = blockIdx.x;
+	__shared__ float matA[BLOCK_SIZE][BLOCK_SIZE];
+	__shared__ float matB[BLOCK_SIZE][BLOCK_SIZE];
 
-	for (int i = tid; i < n; i += blockDim.x) {
-		data[i] = a[row *lda + i];
-	}
+	const int tidr = threadIdx.x;
+	const int tidc = threadIdx.y;
+	const int bidr = blockIdx.x * BLOCK_SIZE;
+	const int bidc = blockIdx.y * BLOCK_SIZE;
 
-    __syncthreads();
-
-	for(int j = tid; j < n; j += blockDim.x) {
-		float s = 0;
-        float cc = 0;
-		for (int i = 0; i < n; i++) {
-            float y = data[i]*b[i*ldb + j] - cc;
-			float t = s + y;
-            cc = (t - s) - y;
-            s = t;
+	float s = 0;
+	float cc = 0;
+	for (int j = 0; j < n; j += BLOCK_SIZE) {
+		if (tidr + bidr < n && tidc + bidc < n) {
+			matA[tidr][tidc] = a[(tidr + bidr)*lda + tidc + j];
 		}
-		c[row*ldc + j] = s;
+		else matA[tidr][tidc] = 0;
+
+		if (tidr + bidr < n && tidc + bidc < n) {
+			matB[tidr][tidc] = b[(tidr + j)*ldb + tidc + bidc];
+		}
+		else matB[tidr][tidc] = 0;
+
+		__syncthreads();
+
+		for (int i = 0; i < BLOCK_SIZE; i++) {
+			float y = matA[tidr][i] * matB[i][tidc] - cc;
+			float t = s + y;
+			cc = (t - s) - y;
+			s = t;
+		}
+
+		__syncthreads();
 	}
+
+	if (tidr + bidr < n && tidc + bidc < n) {
+		c[(tidr + bidr)*ldc + tidc + bidc] = s;
+	}
+
 }
 
 
@@ -114,8 +130,10 @@ clock_t matMultCUDA(const float *a, int lda,
 	cudaMemcpy2D(bc, pitch_b, b, sizeof(float)*ldb,
 			sizeof(float)*n, n, cudaMemcpyHostToDevice);
 
-	int blocks = n;
-	matmultCUDA<<<blocks, NUM_THREADS, sizeof(float)*n>>>
+	int bx = (n + BLOCK_SIZE - 1)/BLOCK_SIZE;
+	dim3 blocks(bx, bx);
+	dim3 threads(BLOCK_SIZE, BLOCK_SIZE);
+	matmultCUDA<<<blocks, threads>>>
 		(ac, pitch_a/sizeof(float), bc, pitch_b/sizeof(float), cc, pitch_c/sizeof(float), n);
 
 	cudaMemcpy2D(c, sizeof(float)*ldc, cc, pitch_c,

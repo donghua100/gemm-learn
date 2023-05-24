@@ -86,15 +86,8 @@ __global__ static void matmultCUDA(const float *a, size_t lda, const float *b, s
 	float s = 0;
 	float cc = 0;
 	for (int j = 0; j < n; j += BLOCK_SIZE) {
-		if (tidr + bidr < n && tidc + j < n) {
 			matA[tidr][tidc] = a[(tidr + bidr)*lda + tidc + j];
-		}
-		else matA[tidr][tidc] = 0;
-
-		if (tidr + j < n && tidc + bidc < n) {
 			matB[tidr][tidc] = b[(tidr + j)*ldb + tidc + bidc];
-		}
-		else matB[tidr][tidc] = 0;
 
 		__syncthreads();
 
@@ -107,10 +100,8 @@ __global__ static void matmultCUDA(const float *a, size_t lda, const float *b, s
 
 		__syncthreads();
 	}
-
-	if (tidr + bidr < n && tidc + bidc < n) {
-		c[(tidr + bidr)*ldc + tidc + bidc] = s;
-	}
+    
+	c[(tidr + bidr)*ldc + tidc + bidc] = s;
 
 }
 
@@ -124,15 +115,15 @@ clock_t matMultCUDA(const float *a, int lda,
 	cudaMallocPitch((void **)&ac, &pitch_a, sizeof(float)*newn, newn);
 	cudaMallocPitch((void **)&bc, &pitch_b, sizeof(float)*newn, newn);
 	cudaMallocPitch((void **)&cc, &pitch_c, sizeof(float)*newn, newn);
-
-	cudaMemcpy2D(ac, pitch_a, a, sizeof(float)*lda,
-			sizeof(float)*newn, newn, cudaMemcpyHostToDevice);
-
-	cudaMemcpy2D(bc, pitch_b, b, sizeof(float)*ldb,
-			sizeof(float)*newn, newn, cudaMemcpyHostToDevice);
-
 	cudaMemset(ac, 0, pitch_a * newn);
 	cudaMemset(bc, 0, pitch_b * newn);
+
+	cudaMemcpy2D(ac, pitch_a, a, sizeof(float)*lda,
+			sizeof(float)*n, n, cudaMemcpyHostToDevice);
+
+	cudaMemcpy2D(bc, pitch_b, b, sizeof(float)*ldb,
+			sizeof(float)*n, n, cudaMemcpyHostToDevice);
+
 
 	int bx = (n + BLOCK_SIZE - 1)/BLOCK_SIZE;
 	dim3 blocks(bx, bx);

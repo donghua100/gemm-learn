@@ -83,6 +83,7 @@ __global__ static void matmultCUDA(const float *a, size_t lda, const float *b, s
 		data[i] = a[row *lda + i];
 	}
 
+    __syncthreads();
 
 	for(int j = tid; j < n; j += blockDim.x) {
 		float s = 0;
@@ -113,7 +114,7 @@ clock_t matMultCUDA(const float *a, int lda,
 			sizeof(float)*n, n, cudaMemcpyHostToDevice);
 
 	int blocks = n;
-	matmultCUDA<<<blocks*n, NUM_THREADS, sizeof(float)*n>>>(ac, n, bc, n, cc, n, n);
+	matmultCUDA<<<blocks, NUM_THREADS, sizeof(float)*n>>>(ac, n, bc, n, cc, n, n);
 
 	cudaMemcpy2D(c, sizeof(float)*ldc, cc, sizeof(float)*n,
 			sizeof(float)*n,n,cudaMemcpyDeviceToHost);

@@ -86,12 +86,12 @@ __global__ static void matmultCUDA(const float *a, size_t lda, const float *b, s
 	float s = 0;
 	float cc = 0;
 	for (int j = 0; j < n; j += BLOCK_SIZE) {
-		if (tidr + bidr < n && tidc + bidc < n) {
+		if (tidr + bidr < n && tidc + j < n) {
 			matA[tidr][tidc] = a[(tidr + bidr)*lda + tidc + j];
 		}
 		else matA[tidr][tidc] = 0;
 
-		if (tidr + bidr < n && tidc + bidc < n) {
+		if (tidr + j < n && tidc + bidc < n) {
 			matB[tidr][tidc] = b[(tidr + j)*ldb + tidc + bidc];
 		}
 		else matB[tidr][tidc] = 0;
@@ -119,7 +119,7 @@ clock_t matMultCUDA(const float *a, int lda,
 		const float *b, int ldb, float *c, int ldc, int n) {
 	float *ac, *bc, *cc;
 	size_t pitch_a, pitch_b, pitch_c;
-	clock_t start = clock();
+	// clock_t start = clock();
 	cudaMallocPitch((void **)&ac, &pitch_a, sizeof(float)*n, n);
 	cudaMallocPitch((void **)&bc, &pitch_b, sizeof(float)*n, n);
 	cudaMallocPitch((void **)&cc, &pitch_c, sizeof(float)*n, n);
@@ -133,8 +133,11 @@ clock_t matMultCUDA(const float *a, int lda,
 	int bx = (n + BLOCK_SIZE - 1)/BLOCK_SIZE;
 	dim3 blocks(bx, bx);
 	dim3 threads(BLOCK_SIZE, BLOCK_SIZE);
+	clock_t start = clock();
 	matmultCUDA<<<blocks, threads>>>
 		(ac, pitch_a/sizeof(float), bc, pitch_b/sizeof(float), cc, pitch_c/sizeof(float), n);
+    cudaDeviceSynchronize();
+	clock_t end = clock();
 
 	cudaMemcpy2D(c, sizeof(float)*ldc, cc, pitch_c,
 			sizeof(float)*n,n,cudaMemcpyDeviceToHost);
@@ -143,7 +146,7 @@ clock_t matMultCUDA(const float *a, int lda,
 	cudaFree(bc);
 	cudaFree(cc);
 
-	clock_t end = clock();
+	// clock_t end = clock();
 	return end - start;
 
 }
@@ -170,12 +173,12 @@ int main() {
 	clock_t gpu_time = matMultCUDA(a, n, b, n, c, n, n);
 
 	double sec = (double)gpu_time/CLOCKS_PER_SEC;
-	printf("(GPU)Time used: %.2f sec(%.2lf GFLOPS)\n", sec,
+	printf("(GPU)Time used: %.4f sec(%.2lf GFLOPS)\n", sec,
 			2.0*n*n*n/(sec*1E9));
 
 	clock_t cpu_time = matmult(a,n,b,n,d,n,n);
     sec = (double)cpu_time/CLOCKS_PER_SEC;
-	printf("(CPU)Time used: %.2f sec(%.2lf GFLOPS)\n", sec,
+	printf("(CPU)Time used: %.4f sec(%.2lf GFLOPS)\n", sec,
 			2.0*n*n*n/(sec*1E9));
 	compare_mat(c, n, d, n, n);
 	return 0;

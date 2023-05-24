@@ -102,21 +102,23 @@ __global__ static void matmultCUDA(const float *a, size_t lda, const float *b, s
 clock_t matMultCUDA(const float *a, int lda,
 		const float *b, int ldb, float *c, int ldc, int n) {
 	float *ac, *bc, *cc;
+	size_t pitch_a, pitch_b, pitch_c;
 	clock_t start = clock();
-	cudaMalloc((void **)&ac, sizeof(float)*n*n);
-	cudaMalloc((void **)&bc, sizeof(float)*n*n);
-	cudaMalloc((void **)&cc, sizeof(float)*n*n);
+	cudaMallocPitch((void **)&ac, &pitch_a, sizeof(float)*n, n);
+	cudaMallocPitch((void **)&bc, &pitch_b, sizeof(float)*n, n);
+	cudaMallocPitch((void **)&cc, &pitch_c, sizeof(float)*n, n);
 
-	cudaMemcpy2D(ac, sizeof(float)*n, a, sizeof(float)*lda,
+	cudaMemcpy2D(ac, pitch_a, a, sizeof(float)*lda,
 			sizeof(float)*n, n, cudaMemcpyHostToDevice);
 
-	cudaMemcpy2D(bc, sizeof(float)*n, b, sizeof(float)*ldb,
+	cudaMemcpy2D(bc, pitch_b, b, sizeof(float)*ldb,
 			sizeof(float)*n, n, cudaMemcpyHostToDevice);
 
 	int blocks = n;
-	matmultCUDA<<<blocks, NUM_THREADS, sizeof(float)*n>>>(ac, n, bc, n, cc, n, n);
+	matmultCUDA<<<blocks, NUM_THREADS, sizeof(float)*n>>>
+		(ac, pitch_a/sizeof(float), bc, pitch_b/sizeof(float), cc, pitch_c/sizeof(float), n);
 
-	cudaMemcpy2D(c, sizeof(float)*ldc, cc, sizeof(float)*n,
+	cudaMemcpy2D(c, sizeof(float)*ldc, cc, pitch_c,
 			sizeof(float)*n,n,cudaMemcpyDeviceToHost);
 
 	cudaFree(ac);
